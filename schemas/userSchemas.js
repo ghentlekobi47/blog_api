@@ -7,13 +7,13 @@ export const createUserSchema = z.object({
     lastName: z.string().trim().min(1),
     userName: z.string().trim().min(1),
     email: z.email().trim(),
-    password: z.string({error: "password is required"}).min(8),
+    password: z.string({error: "password is required"}).min(8).max(72),
 
 })
 
 // validation schema for login
 export const loginUserSchema = z.object({
     email: z.email().trim(),
-    password: z.string().trim().min(8),
+    password: z.string().min(8).max(72),
 })
 

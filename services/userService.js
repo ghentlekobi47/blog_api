@@ -1,5 +1,5 @@
-import { findUserById, findUserByUsername, findUserByEmail,createUser } from "../repositories/userRepository.js";
-import { createUserSchema, loginUserSchema } from "../schemas/userSchemas.js";
+import { findUserByUsername, findUserByEmail, createUser } from "../repositories/userRepository.js";
+import { AppError } from "../utils/AppError.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
@@ -11,8 +11,10 @@ const sanitizeUser = (user) => ({
     lastName: user.lastName,
     userName: user.username,
     email: user.email,
-    createAt: user.createdAt,
+    createdAt: user.createdAt,
 });
+
+const SALT_ROUNDS = 10;
 
 // register a new user
 export const registerUser = async ({firstName, lastName, userName, email, password}) =>  {
@@ -22,22 +24,26 @@ export const registerUser = async ({firstName, lastName, userName, email, passwo
     const isEmailTaken = await findUserByEmail(email);
     const isUsernameTaken = await findUserByUsername(userName);
     if (isEmailTaken) {
-        throw new Error("Email is already taken");
+        throw new AppError("Email is already taken", 409);
     }
     if (isUsernameTaken) {
-        throw new Error("Username is already taken");
+        throw new AppError("Username is already taken", 409);
     }
-
-const SALT_ROUNDS = 10;
 
 // hash the password 
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
-    password = hashedPassword;
-
 
 // create a new user
-    const newUser = await createUser({firstName, lastName, username: userName, email, password:hashedPassword});
-    return sanitizeUser(newUser);
+    try {
+        const newUser = await createUser({firstName, lastName, username: userName, email, password: hashedPassword});
+        return sanitizeUser(newUser);
+    } catch (error) {
+        // another request registered the same email/username between the checks and the insert
+        if (error.name === "SequelizeUniqueConstraintError") {
+            throw new AppError("Email or username is already taken", 409);
+        }
+        throw error;
+    }
 };
 
 
@@ -48,7 +54,7 @@ export const loginUser = async ({email, password}) => {
     const user = await findUserByEmail(email);
 
     if (!user || !await bcrypt.compare(password, user.password)) {
-        throw new Error("Invalid email or password");
+        throw new AppError("Invalid email or password", 401);
 
     }
 
